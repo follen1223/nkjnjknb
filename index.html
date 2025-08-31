@@ -7822,6 +7822,246 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("Система вибрации активирована");
 });
 
+  (function() {
+  console.log("🔒 Disabling zoom and pull-to-close gestures");
+  
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+
+  // Жесткое отключение масштабирования
+  function disableZoom() {
+    // Устанавливаем viewport
+    let viewport = document.querySelector('meta[name="viewport"]');
+    if (!viewport) {
+      viewport = document.createElement('meta');
+      viewport.name = 'viewport';
+      document.head.appendChild(viewport);
+    }
+    
+    if (isIOS) {
+      // Для iOS - максимально строгие настройки
+      viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no';
+    } else {
+      // Для Android и других устройств
+      viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    }
+
+    // Дополнительные CSS-правила
+    const antiZoomStyles = `
+      body {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+        touch-action: manipulation !important;
+        overflow: hidden !important;
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      
+      /* Разрешаем выделение текста в полях ввода */
+      input, textarea {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+      }
+      
+      /* Предотвращаем стандартное поведение браузера */
+      * {
+        -webkit-user-drag: none !important;
+        -webkit-touch-callout: none !important;
+      }
+    `;
+    
+    const style = document.createElement('style');
+    style.textContent = antiZoomStyles;
+    document.head.appendChild(style);
+  }
+
+  // Блокировка жестов масштабирования
+  function blockZoomGestures() {
+    // Блокировка мультитач жестов
+    document.addEventListener('touchstart', function(e) {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Блокировка двойного тапа для зума
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(e) {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    // Блокировка жестов pinch-to-zoom
+    document.addEventListener('gesturestart', function(e) {
+      e.preventDefault();
+    });
+    
+    document.addEventListener('gesturechange', function(e) {
+      e.preventDefault();
+    });
+    
+    document.addEventListener('gestureend', function(e) {
+      e.preventDefault();
+    });
+
+    // Блокировка выделения текста (кроме полей ввода)
+    document.addEventListener('selectstart', function(e) {
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+      }
+    });
+  }
+
+  // Блокировка свайпа вниз для закрытия (особенно для iOS)
+  function blockPullToClose() {
+    let startY = 0;
+    let currentY = 0;
+    let isVerticalSwiping = false;
+
+    document.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 1) {
+        startY = e.touches[0].clientY;
+        currentY = startY;
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function(e) {
+      if (e.touches.length === 1) {
+        currentY = e.touches[0].clientY;
+        const deltaY = currentY - startY;
+
+        // Если свайп вниз от самого верха экрана - блокируем
+        if (window.scrollY === 0 && deltaY > 0) {
+          // Проверяем, что это именно свайп вниз, а не скролл
+          if (deltaY > 30 && !isVerticalSwiping) {
+            isVerticalSwiping = true;
+            e.preventDefault();
+            return;
+          }
+          
+          if (isVerticalSwiping) {
+            e.preventDefault();
+          }
+        }
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchend', function() {
+      isVerticalSwiping = false;
+      startY = 0;
+      currentY = 0;
+    }, { passive: true });
+  }
+
+  // Защита от закрытия мини-приложения
+  function protectFromClose() {
+    if (window.Telegram && Telegram.WebApp) {
+      // Отключаем стандартное поведение закрытия
+      Telegram.WebApp.disableVerticalSwipes();
+      
+      // Можно добавить подтверждение перед закрытием
+      Telegram.WebApp.onEvent('viewportChanged', function(e) {
+        if (e.isExpanded === false) {
+          // Пытаемся развернуть обратно при сворачивании
+          setTimeout(() => {
+            Telegram.WebApp.expand();
+          }, 100);
+        }
+      });
+    }
+  }
+
+  // Дополнительная защита для iOS
+  function setupIOSProtection() {
+    if (!isIOS) return;
+
+    // Фиксируем положение body
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    document.body.style.overflow = 'hidden';
+
+    // Блокировка bounce effect в iOS
+    const iosBounceFix = `
+      html, body {
+        overscroll-behavior: none !important;
+        -webkit-overflow-scrolling: touch !important;
+        overflow: hidden !important;
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
+        top: 0 !important;
+        left: 0 !important;
+      }
+      
+      /* Предотвращаем bounce при скролле */
+      .scroll-container {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: none;
+      }
+    `;
+
+    const style = document.createElement('style');
+    style.textContent = iosBounceFix;
+    document.head.appendChild(style);
+  }
+
+  // Инициализация
+  function initProtection() {
+    console.log("🛡️ Initializing protection against zoom and pull-to-close");
+    
+    disableZoom();
+    blockZoomGestures();
+    blockPullToClose();
+    protectFromClose();
+    setupIOSProtection();
+    
+    // Дополнительная проверка для Telegram WebApp
+    if (window.Telegram && Telegram.WebApp) {
+      // Отключаем все свайпы для закрытия
+      Telegram.WebApp.disableVerticalSwipes();
+      Telegram.WebApp.enableClosingConfirmation();
+      
+      console.log("✅ Telegram WebApp protection enabled");
+    }
+    
+    console.log("✅ Zoom and pull-to-close protection activated");
+  }
+
+  // Запускаем защиту
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initProtection);
+  } else {
+    // Если документ уже загружен, запускаем сразу
+    setTimeout(initProtection, 100);
+  }
+
+  // Постоянный мониторинг (на случай динамического изменения)
+  setInterval(() => {
+    // Проверяем, не изменился ли viewport
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport && !viewport.content.includes('user-scalable=no')) {
+      viewport.content += ', user-scalable=no';
+    }
+    
+    // Проверяем положение body
+    if (document.body.style.position !== 'fixed') {
+      document.body.style.position = 'fixed';
+      document.body.style.overflow = 'hidden';
+    }
+  }, 1000);
+
+})();
 </script>
 
 <script>
