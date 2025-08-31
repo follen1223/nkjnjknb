@@ -8066,12 +8066,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 (function() {
-  console.log("📱 Fine-tuning iOS swipes with bug fixes");
+  console.log("📱 Optimizing swipes for iOS and Android");
   
-  const SWIPE_THRESHOLD = 25;
-  const MIN_SWIPE_DISTANCE = 70; // Увеличил для избежания случайных свайпов
+  const SWIPE_THRESHOLD = 20;
+  const MIN_SWIPE_DISTANCE = 50;
   const ANIM_MS = 350;
-  const BOUNCE_FACTOR = 0.5; // Меньше отскока для стабильности
+  const BOUNCE_FACTOR = 0.3; // Меньше отскока для стабильности
 
   let startX = 0, startY = 0;
   let currentX = 0, currentY = 0;
@@ -8082,8 +8082,9 @@ document.addEventListener('DOMContentLoaded', function() {
   let swipeStartTime = 0;
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
 
-  // Минимальные стили для стабильности
+  // Оптимизированные стили
   const swipeStyles = `
     .swipe-page {
       position: fixed;
@@ -8097,7 +8098,7 @@ document.addEventListener('DOMContentLoaded', function() {
         -webkit-transform: translateZ(0);
         backface-visibility: hidden;
         perspective: 1000px;
-        -webkit-font-smoothing: antialiased;
+        -webkit-overflow-scrolling: touch;
       ` : ''}
     }
     
@@ -8109,7 +8110,7 @@ document.addEventListener('DOMContentLoaded', function() {
       z-index: 101;
     }
     
-    /* Фикс для iOS навигации */
+    /* Фиксы для навигации */
     .bottom-nav {
       z-index: 10000 !important;
       position: fixed !important;
@@ -8119,8 +8120,8 @@ document.addEventListener('DOMContentLoaded', function() {
       transform: translateZ(0) !important;
     }
     
-    /* Фикс для верхней панели */
-    .header-nav, .top-bar, [class*="header"], [class*="top"] {
+    /* Защита верхней панели */
+    [class*="header"], [class*="top"], .header-nav, .top-bar {
       z-index: 10000 !important;
       position: relative !important;
       transform: translateZ(0) !important;
@@ -8128,6 +8129,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     body.swipe-in-progress {
       overflow: hidden !important;
+      position: fixed !important;
+      width: 100% !important;
       height: 100% !important;
     }
   `;
@@ -8136,13 +8139,13 @@ document.addEventListener('DOMContentLoaded', function() {
   styleEl.textContent = swipeStyles;
   document.head.appendChild(styleEl);
 
-  // iOS-specific fixes
+  // iOS специфичные фиксы
   function setupIOSFixes() {
     if (!isIOS) return;
     
     // Мягкая блокировка жестов
     document.addEventListener('touchstart', function(e) {
-      if (e.touches.length > 1) {
+      if (e.touches.length > 1 && isSwiping) {
         e.preventDefault();
       }
     }, { passive: false });
@@ -8153,21 +8156,18 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
       }
     }, { passive: false });
+  }
+
+  // Android специфичные фиксы
+  function setupAndroidFixes() {
+    if (!isAndroid) return;
     
-    // Фиксируем важные элементы
-    setTimeout(() => {
-      const fixedElements = [
-        '.bottom-nav', '.header', '.top-bar', 
-        '[class*="nav"]', '[class*="header"]', '[class*="top"]'
-      ];
-      
-      fixedElements.forEach(selector => {
-        document.querySelectorAll(selector).forEach(el => {
-          el.style.transform = 'translateZ(0)';
-          el.style.zIndex = '10000';
-        });
-      });
-    }, 100);
+    // Для Android - более мягкие настройки
+    document.addEventListener('touchstart', function(e) {
+      if (e.touches.length > 2 && isSwiping) {
+        e.preventDefault();
+      }
+    }, { passive: false });
   }
 
   function getCurrentPage() {
@@ -8257,12 +8257,6 @@ document.addEventListener('DOMContentLoaded', function() {
       targetPage.style.display = 'block';
       targetPage.classList.add('swipe-active');
       
-      // Восстанавливаем трансформации
-      setTimeout(() => {
-        targetPage.style.transform = '';
-        targetPage.style.transition = '';
-      }, 50);
-      
       if (pageId === 'storage-page') {
         loadStorageCart();
       }
@@ -8325,7 +8319,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }, ANIM_MS);
   }
 
-  // Обработчики с улучшенной логикой
+  // Улучшенные обработчики
   function handleTouchStart(e) {
     if (isSwiping || e.touches.length !== 1) return;
     if (e.target.closest('input, textarea, select, button, a, .no-swipe')) return;
@@ -8356,18 +8350,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const dx = currentX - startX;
     const dy = currentY - startY;
 
-    // Более строгая проверка направления
-    if (!swipeDirection && Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 2) {
-      swipeDirection = dx > 0 ? 'right' : 'left';
-      
-      const nextPageId = getNextPageId(currentPage.id, swipeDirection);
-      if (nextPageId) {
-        nextPage = document.getElementById(nextPageId);
-        if (nextPage) {
-          nextPage.style.display = 'block';
-          nextPage.classList.add('swipe-active', 'swipe-no-transition');
-          nextPage.style.transform = swipeDirection === 'right' ? 
-            'translateX(-100%)' : 'translateX(100%)';
+    // Улучшенное определение направления
+    if (!swipeDirection && Math.abs(dx) > SWIPE_THRESHOLD) {
+      const angle = Math.abs(Math.atan2(dy, dx));
+      // Только горизонтальные свайпы (угол меньше 30 градусов)
+      if (angle < 0.5) {
+        swipeDirection = dx > 0 ? 'right' : 'left';
+        
+        const nextPageId = getNextPageId(currentPage.id, swipeDirection);
+        if (nextPageId) {
+          nextPage = document.getElementById(nextPageId);
+          if (nextPage) {
+            nextPage.style.display = 'block';
+            nextPage.classList.add('swipe-active', 'swipe-no-transition');
+            nextPage.style.transform = swipeDirection === 'right' ? 
+              'translateX(-100%)' : 'translateX(100%)';
+          }
         }
       }
     }
@@ -8382,16 +8380,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!isSwiping || !currentPage) return;
 
     const dx = currentX - startX;
-    const swipeDuration = Date.now() - swipeStartTime;
-    const swipeSpeed = Math.abs(dx) / swipeDuration;
     
-    // Динамический порог в зависимости от скорости
-    const dynamicThreshold = Math.max(MIN_SWIPE_DISTANCE, swipeSpeed * 100);
-    
-    if (swipeDirection && Math.abs(dx) > dynamicThreshold) {
+    // Простая проверка без сложной логики
+    if (swipeDirection && Math.abs(dx) > MIN_SWIPE_DISTANCE) {
       completeSwipe(swipeDirection);
     } else {
-      // Плавный возврат
+      // Возвращаем на место
       currentPage.style.transition = `transform ${ANIM_MS}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
       currentPage.style.transform = '';
       
@@ -8424,6 +8418,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Инициализация
   function init() {
     setupIOSFixes();
+    setupAndroidFixes();
     
     // Добавляем классы страницам
     ['main-page', 'cabinet-page', 'storage-page'].forEach(pageId => {
@@ -8431,17 +8426,16 @@ document.addEventListener('DOMContentLoaded', function() {
       if (page) page.classList.add('swipe-page');
     });
     
-    // Более надежные обработчики
-    const options = { passive: false };
+    // Оптимизированные обработчики
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchmove', handleTouchMove, options);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd, { passive: true });
     document.addEventListener('touchcancel', handleTouchEnd, { passive: true });
     
     // Первоначальная настройка
     setTimeout(() => {
       updateNavigationIndicator();
-      console.log("✅ iOS swipe system optimized!");
+      console.log("✅ Swipe system optimized for iOS and Android!");
     }, 200);
   }
 
@@ -8449,10 +8443,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
-    setTimeout(init, 150);
+    setTimeout(init, 100);
   }
-
-})();
 </script>
   
 </body>
